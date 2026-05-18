@@ -1,0 +1,145 @@
+services:
+  resolver:
+    build:
+      context: ./resolver
+      args:
+        BIND9_PREFERRED_VERSION: "${BIND9_PREFERRED_VERSION}"
+        BIND9_FALLBACK_SERIES: "${BIND9_FALLBACK_SERIES}"
+    image: scenario-resolver:bind9-9.18
+    container_name: resolver
+    ports:
+      - "${RESOLVER_HOST_DNS_PORT}:${DNS_PORT}/tcp"
+      - "${RESOLVER_HOST_DNS_PORT}:${DNS_PORT}/udp"
+    expose:
+      - "${ALERT_PORT}/udp"
+    environment:
+      DNS_PORT: "${DNS_PORT}"
+      AUTH_IP: "${AUTH_IP}"
+      RESOLVER_ATTACK_UDP_PORT: "${RESOLVER_ATTACK_UDP_PORT}"
+      ALERT_BIND_HOST: "${ALERT_BIND_HOST}"
+      ALERT_PORT: "${ALERT_PORT}"
+    networks:
+      scenario-net:
+        ipv4_address: "${RESOLVER_IP}"
+    restart: unless-stopped
+
+  sniffer:
+    build:
+      context: ./sniffer
+    image: scenario-sniffer:python
+    container_name: sniffer
+    depends_on:
+      - resolver
+    environment:
+      ALERT_HOST: "${RESOLVER_IP}"
+      ALERT_PORT: "${ALERT_PORT}"
+      SNIFF_INTERFACE: "${SNIFF_INTERFACE}"
+      AUTH_IP: "${AUTH_IP}"
+      RESOLVER_IP: "${RESOLVER_IP}"
+      DNS_PORT: "${DNS_PORT}"
+    networks:
+      scenario-net:
+        ipv4_address: "${SNIFFER_IP}"
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    restart: unless-stopped
+
+  auth:
+    build:
+      context: ./auth
+      args:
+        BIND9_PREFERRED_VERSION: "${BIND9_PREFERRED_VERSION}"
+        BIND9_FALLBACK_SERIES: "${BIND9_FALLBACK_SERIES}"
+    image: scenario-auth:bind9-9.18
+    container_name: auth
+    cap_add:
+      - NET_ADMIN
+    environment:
+      AUTH_DELAY_MS: "${AUTH_DELAY_MS}"
+      AUTH_DELAY_IFACE: "${AUTH_DELAY_IFACE}"
+      DNS_PORT: "${DNS_PORT}"
+      REAL_WEB_IP: "${REAL_WEB_IP}"
+      AUTH_IP: "${AUTH_IP}"
+    ports:
+      - "${AUTH_HOST_DNS_PORT}:${DNS_PORT}/tcp"
+      - "${AUTH_HOST_DNS_PORT}:${DNS_PORT}/udp"
+    networks:
+      scenario-net:
+        ipv4_address: "${AUTH_IP}"
+    restart: unless-stopped
+
+  attacker:
+    build:
+      context: ./attacker
+    image: scenario-attacker:scapy
+    container_name: attacker
+    privileged: true
+    command: ["sleep", "infinity"]
+    environment:
+      RESOLVER_IP: "${RESOLVER_IP}"
+      AUTH_IP: "${AUTH_IP}"
+      TARGET_DOMAIN: "${TARGET_DOMAIN}"
+      FAKE_WEB_IP: "${FAKE_WEB_IP}"
+      RESOLVER_ATTACK_UDP_PORT: "${RESOLVER_ATTACK_UDP_PORT}"
+      DNS_PORT: "${DNS_PORT}"
+      ATTACK_NS_NAME: "${ATTACK_NS_NAME}"
+    networks:
+      scenario-net:
+        ipv4_address: "${ATTACKER_IP}"
+    restart: unless-stopped
+
+  client:
+    build:
+      context: ./client
+    image: scenario-client:python
+    container_name: client
+    depends_on:
+      - resolver
+      - auth
+    environment:
+      RESOLVER_IP: "${RESOLVER_IP}"
+      RESOLVER_PORT: "${DNS_PORT}"
+      DOMAIN_COUNT: "${CLIENT_DOMAIN_COUNT}"
+      DOMAIN_PREFIX: "${CLIENT_DOMAIN_PREFIX}"
+      DOMAIN_SUFFIX: "${CLIENT_DOMAIN_SUFFIX}"
+      ZIPF_S: "${CLIENT_ZIPF_S}"
+      TOTAL_QUERIES: "${CLIENT_TOTAL_QUERIES}"
+      DURATION_SECONDS: "${CLIENT_DURATION_SECONDS}"
+      TIMEOUT_SECONDS: "${CLIENT_TIMEOUT_SECONDS}"
+      PROGRESS_INTERVAL_SECONDS: "${CLIENT_PROGRESS_INTERVAL_SECONDS}"
+    networks:
+      scenario-net:
+        ipv4_address: "${CLIENT_IP}"
+    restart: unless-stopped
+
+  real-web:
+    build:
+      context: ./real-web
+    image: scenario-real-web:nginx
+    container_name: real-web
+    ports:
+      - "${REAL_WEB_HOST_PORT}:${REAL_WEB_PORT}"
+    networks:
+      scenario-net:
+        ipv4_address: "${REAL_WEB_IP}"
+    restart: unless-stopped
+
+  fake-web:
+    build:
+      context: ./fake-web
+    image: scenario-fake-web:nginx
+    container_name: fake-web
+    ports:
+      - "${FAKE_WEB_HOST_PORT}:${FAKE_WEB_PORT}"
+    networks:
+      scenario-net:
+        ipv4_address: "${FAKE_WEB_IP}"
+    restart: unless-stopped
+
+networks:
+  scenario-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: "${NETWORK_SUBNET}"

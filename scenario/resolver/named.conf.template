@@ -1,0 +1,29 @@
+options {
+    directory "/var/cache/bind";
+    session-keyfile "/var/cache/bind/session.key";
+
+    listen-on port ${DNS_PORT} { any; };
+    listen-on-v6 { none; };
+
+    resolver-query-timeout 30;
+    max-recursion-queries 20;
+
+    recursion yes;
+    allow-query { any; };
+    dnssec-validation no;
+    use-v4-udp-ports { ${RESOLVER_ATTACK_UDP_PORT}; };
+
+    forwarders {
+        8.8.8.8;
+        1.1.1.1;
+    };
+    forward only;
+};
+
+zone "bank.test" IN {
+    type forward;
+    forward only;
+    forwarders {
+        ${AUTH_IP};
+    };
+};

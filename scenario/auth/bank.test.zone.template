@@ -1,0 +1,12 @@
+$TTL 300
+@   IN  SOA ns1.bank.test. admin.bank.test. (
+        2026042801
+        3600
+        900
+        604800
+        300
+)
+
+@       IN  NS  ns1.bank.test.
+@       IN  A   ${REAL_WEB_IP}
+ns1     IN  A   ${AUTH_IP}
