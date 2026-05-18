@@ -1,0 +1,19 @@
+$TTL 60
+@   IN  SOA ns1.domain0640.test. admin.domain0640.test. (
+        2026051840 ; serial
+        300        ; refresh
+        180        ; retry
+        1209600    ; expire
+        60 )   ; minimum
+
+@       IN  NS      ns1.domain0640.test.
+ns1     IN  A       10.10.10.53
+@       IN  A       10.10.31.110
+@       IN  TXT     "env=prod;dept=finance"
+mail    IN  A       10.10.127.31
+login    IN  CNAME   www.domain0640.test.
+www IN  A       10.10.122.52
+admin    IN  CNAME   portal.domain0640.test.
+portal IN  A       10.10.244.202
+api    IN  A       10.10.169.125
+api    IN  A       10.10.241.163

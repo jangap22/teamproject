@@ -1,0 +1,17 @@
+$TTL 300
+@   IN  SOA ns1.domain0795.test. admin.domain0795.test. (
+        2026051895 ; serial
+        300        ; refresh
+        180        ; retry
+        1209600    ; expire
+        300 )   ; minimum
+
+@       IN  NS      ns1.domain0795.test.
+ns1     IN  A       10.10.10.53
+@       IN  A       10.10.215.170
+@       IN  TXT     "env=prod;dept=infra"
+bank    IN  A       10.10.57.16
+bank    IN  A       10.10.131.54
+mail    IN  A       10.10.149.203
+login    IN  A       10.10.110.93
+login    IN  A       10.10.184.134

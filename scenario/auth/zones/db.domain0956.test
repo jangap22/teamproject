@@ -1,0 +1,20 @@
+$TTL 60
+@   IN  SOA ns1.domain0956.test. admin.domain0956.test. (
+        2026051856 ; serial
+        300        ; refresh
+        180        ; retry
+        1209600    ; expire
+        60 )   ; minimum
+
+@       IN  NS      ns1.domain0956.test.
+ns1     IN  A       10.10.10.53
+@       IN  A       10.10.254.53
+@       IN  TXT     "env=stage;dept=security"
+intranet    IN  A       10.10.182.175
+intranet    IN  A       10.10.254.216
+mail    IN  A       10.10.38.200
+login    IN  A       10.10.93.140
+login    IN  A       10.10.165.180
+www    IN  A       10.10.172.26
+api    IN  A       10.10.87.197
+_info.api IN TXT "service=api;ttl=60"

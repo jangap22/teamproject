@@ -1,0 +1,18 @@
+$TTL 600
+@   IN  SOA ns1.domain0371.test. admin.domain0371.test. (
+        2026051871 ; serial
+        300        ; refresh
+        180        ; retry
+        1209600    ; expire
+        600 )   ; minimum
+
+@       IN  NS      ns1.domain0371.test.
+ns1     IN  A       10.10.10.53
+@       IN  A       10.10.224.248
+@       IN  TXT     "env=stage;dept=rnd"
+api    IN  A       10.10.83.213
+_info.api IN TXT "service=api;ttl=600"
+dev    IN  A       10.10.67.121
+_info.dev IN TXT "service=dev;ttl=600"
+portal    IN  CNAME   www.domain0371.test.
+www IN  A       10.10.117.58

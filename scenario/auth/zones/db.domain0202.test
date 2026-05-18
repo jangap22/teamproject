@@ -1,0 +1,23 @@
+$TTL 300
+@   IN  SOA ns1.domain0202.test. admin.domain0202.test. (
+        2026051802 ; serial
+        300        ; refresh
+        180        ; retry
+        1209600    ; expire
+        300 )   ; minimum
+
+@       IN  NS      ns1.domain0202.test.
+ns1     IN  A       10.10.10.53
+@       IN  A       10.10.231.13
+@       IN  TXT     "env=test;dept=infra"
+login    IN  A       10.10.27.245
+mail    IN  A       10.10.228.68
+mail    IN  A       10.10.49.106
+intranet    IN  CNAME   portal.domain0202.test.
+portal IN  A       10.10.226.198
+portal    IN  A       10.10.90.13
+portal    IN  A       10.10.162.52
+www    IN  CNAME   portal.domain0202.test.
+portal IN  A       10.10.120.117
+mail    IN  A       10.10.137.46
+@       IN  MX 10   mail.domain0202.test.

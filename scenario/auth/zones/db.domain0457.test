@@ -1,0 +1,24 @@
+$TTL 120
+@   IN  SOA ns1.domain0457.test. admin.domain0457.test. (
+        2026051857 ; serial
+        300        ; refresh
+        180        ; retry
+        1209600    ; expire
+        120 )   ; minimum
+
+@       IN  NS      ns1.domain0457.test.
+ns1     IN  A       10.10.10.53
+@       IN  A       10.10.39.132
+@       IN  TXT     "env=prod;dept=finance"
+login    IN  CNAME   www.domain0457.test.
+www IN  A       10.10.187.176
+bank    IN  A       10.10.241.69
+bank    IN  A       10.10.59.107
+mail    IN  A       10.10.194.200
+mail    IN  A       10.10.12.241
+www    IN  A       10.10.174.254
+intranet    IN  A       10.10.1.222
+_info.intranet IN TXT "service=intranet;ttl=120"
+dev    IN  A       10.10.37.35
+mail    IN  A       10.10.97.184
+@       IN  MX 10   mail.domain0457.test.
