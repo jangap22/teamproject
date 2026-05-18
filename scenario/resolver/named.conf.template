@@ -12,12 +12,11 @@ options {
     allow-query { any; };
     dnssec-validation no;
     use-v4-udp-ports { ${RESOLVER_ATTACK_UDP_PORT}; };
+};
 
-    forwarders {
-        8.8.8.8;
-        1.1.1.1;
-    };
-    forward only;
+zone "." IN {
+    type hint;
+    file "/etc/bind/closed-root.hints";
 };
 
 zone "bank.test" IN {
@@ -25,5 +24,13 @@ zone "bank.test" IN {
     forward only;
     forwarders {
         ${AUTH_IP};
+    };
+};
+
+zone "external.test" IN {
+    type forward;
+    forward only;
+    forwarders {
+        ${EXTERNAL_AUTH_IP};
     };
 };

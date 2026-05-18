@@ -15,6 +15,7 @@ services:
     environment:
       DNS_PORT: "${DNS_PORT}"
       AUTH_IP: "${AUTH_IP}"
+      EXTERNAL_AUTH_IP: "${EXTERNAL_AUTH_IP}"
       RESOLVER_ATTACK_UDP_PORT: "${RESOLVER_ATTACK_UDP_PORT}"
       ALERT_BIND_HOST: "${ALERT_BIND_HOST}"
       ALERT_PORT: "${ALERT_PORT}"
@@ -69,6 +70,27 @@ services:
         ipv4_address: "${AUTH_IP}"
     restart: unless-stopped
 
+  external-auth:
+    build:
+      context: ./external-auth
+      args:
+        BIND9_PREFERRED_VERSION: "${BIND9_PREFERRED_VERSION}"
+        BIND9_FALLBACK_SERIES: "${BIND9_FALLBACK_SERIES}"
+    image: scenario-external-auth:bind9-9.18
+    container_name: external-auth
+    environment:
+      DNS_PORT: "${DNS_PORT}"
+      EXTERNAL_AUTH_IP: "${EXTERNAL_AUTH_IP}"
+      EXTERNAL_DOMAIN_SUFFIX: "${EXTERNAL_DOMAIN_SUFFIX}"
+      EXTERNAL_DOMAIN_COUNT: "${EXTERNAL_DOMAIN_COUNT}"
+    ports:
+      - "${EXTERNAL_AUTH_HOST_DNS_PORT}:${DNS_PORT}/tcp"
+      - "${EXTERNAL_AUTH_HOST_DNS_PORT}:${DNS_PORT}/udp"
+    networks:
+      scenario-net:
+        ipv4_address: "${EXTERNAL_AUTH_IP}"
+    restart: unless-stopped
+
   attacker:
     build:
       context: ./attacker
@@ -97,15 +119,20 @@ services:
     depends_on:
       - resolver
       - auth
+      - external-auth
     environment:
       RESOLVER_IP: "${RESOLVER_IP}"
       RESOLVER_PORT: "${DNS_PORT}"
-      DOMAIN_COUNT: "${CLIENT_DOMAIN_COUNT}"
-      DOMAIN_PREFIX: "${CLIENT_DOMAIN_PREFIX}"
-      DOMAIN_SUFFIX: "${CLIENT_DOMAIN_SUFFIX}"
-      ZIPF_S: "${CLIENT_ZIPF_S}"
-      TOTAL_QUERIES: "${CLIENT_TOTAL_QUERIES}"
-      DURATION_SECONDS: "${CLIENT_DURATION_SECONDS}"
+      EXTERNAL_DOMAIN_SUFFIX: "${EXTERNAL_DOMAIN_SUFFIX}"
+      EXTERNAL_DOMAIN_COUNT: "${EXTERNAL_DOMAIN_COUNT}"
+      ZIPF_S: "${ZIPF_S}"
+      NXDOMAIN_RATIO: "${NXDOMAIN_RATIO}"
+      TOTAL_QUERIES: "${TOTAL_QUERIES}"
+      DURATION_SECONDS: "${DURATION_SECONDS}"
+      WARMUP_SECONDS: "${WARMUP_SECONDS}"
+      ATTACK_WINDOW_SECONDS: "${ATTACK_WINDOW_SECONDS}"
+      COOLDOWN_SECONDS: "${COOLDOWN_SECONDS}"
+      NORMAL_QPS: "${NORMAL_QPS}"
       TIMEOUT_SECONDS: "${CLIENT_TIMEOUT_SECONDS}"
       PROGRESS_INTERVAL_SECONDS: "${CLIENT_PROGRESS_INTERVAL_SECONDS}"
     networks:

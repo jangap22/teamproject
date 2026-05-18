@@ -14,15 +14,14 @@ RUN apt-get update \
         echo "No bind9 ${BIND9_FALLBACK_SERIES}.x package found in apt repositories" >&2; \
         exit 1; \
        fi \
-    && apt-get install -y --no-install-recommends "bind9=$bind9_version" dnsutils tcpdump python3 gettext-base \
+    && apt-get install -y --no-install-recommends "bind9=$bind9_version" dnsutils gettext-base python3 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY named.conf.template /etc/bind/named.conf.template
-COPY listener.py /listener.py
+COPY generate_external_zone.py /usr/local/bin/generate_external_zone.py
 COPY entrypoint.sh /entrypoint.sh
 
-RUN printf '. 3600000 IN NS blackhole-root.\nblackhole-root. 3600000 IN A 192.0.2.1\n' > /etc/bind/closed-root.hints \
-    && chmod +x /listener.py /entrypoint.sh
+RUN chmod +x /usr/local/bin/generate_external_zone.py /entrypoint.sh
 
 EXPOSE 53/tcp 53/udp
 

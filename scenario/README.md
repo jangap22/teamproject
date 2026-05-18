@@ -18,8 +18,10 @@
 | **Resolver** | 취약한 DNS 리졸버 (Victim) | `172.20.0.10` | `10053/udp` | BIND 9.18.x |
 | **Auth Server** | 정상 권한 DNS 서버 (Mock) | `172.20.0.20` | `20053/udp` | BIND 9.x |
 | **Attacker** | 패킷 주입 공격자 | `172.20.0.30` | - | Python 3.11, Scapy |
+| **Client** | 정상 DNS 트래픽 생성기 | `172.20.0.40` | - | Python 3.11, dnspython |
 | **Real Web** | 정상 서비스 서버 (Green) | `172.20.0.50` | `8081/tcp` | Nginx (Alpine) |
 | **Fake Web** | 위조 피싱 서버 (Red) | `172.20.0.60` | `8082/tcp` | Nginx (Alpine) |
+| **External Auth** | 가짜 인터넷 권한 DNS 서버 | `172.20.0.80` | `30053/udp` | BIND 9.x |
 
 ---
 
@@ -35,6 +37,13 @@ scenario/
  │           ├── Dockerfile
  │           ├── named.conf              # 권한 서버 설정
  │           └── bank.test.zone          # 도메인 레코드 정보
+├── external-auth/              # [Fake Internet] external.test 권한 DNS 서버
+ │           ├── Dockerfile
+ │           ├── named.conf.template
+ │           └── generate_external_zone.py
+├── client/                     # [Normal Traffic] Zipf-like DNS 트래픽 생성기
+ │           ├── Dockerfile
+ │           └── query_generator.py
 ├── real-web/                   # [Normal] 정상 웹 서버
  │           ├── Dockerfile
  │           └── index.html              # 정상 사이트 페이지 (Green)
@@ -52,11 +61,29 @@ scenario/
 
 ### **Step 1: Resolver 구축**
 * **목표**: 취약한 설정의 리졸버 기동.
-* **검증**: `dig @localhost -p 10053 google.com` 결과 확인.
+* **검증**: 폐쇄형 실습망이므로 `dig @localhost -p 10053 google.external.test` 결과 확인.
 
 ### **Step 2: DNS 체인 완성**
 * **목표**: 리졸버가 `bank.test` 질의를 `auth` 서버로 포워딩하도록 설정.
 * **검증**: `dig @localhost -p 10053 bank.test` 가 `172.20.0.50` (Real)을 반환하는지 확인.
+
+### **Step 2-1: 폐쇄형 external.test 정상 트래픽**
+* **목표**: 리졸버가 `bank.test`는 기존 `auth`, `external.test`는 새 `external-auth`로만 포워딩.
+* **중요**: 실제 `google.com`, `youtube.com`, `naver.com`으로 질의하지 않고 `google.external.test`, `youtube.external.test`, `naver.external.test`만 사용.
+* **기본 정상 트래픽**: `WARMUP_SECONDS=300`, `ATTACK_WINDOW_SECONDS=60`, `COOLDOWN_SECONDS=300`, `NORMAL_QPS=200` 이므로 약 132,000개 질의를 생성.
+* **검증 명령어**:
+
+```bash
+docker compose up --build
+docker exec -it resolver dig @127.0.0.1 bank.test A
+docker exec -it resolver dig @127.0.0.1 google.external.test A
+docker exec -it resolver dig @127.0.0.1 www.domain0001.external.test A
+docker exec -it resolver dig @127.0.0.1 domain0001.external.test MX
+docker exec -it resolver dig @127.0.0.1 random123.domain0001.external.test A
+docker exec -it external-auth named-checkconf /etc/bind/named.conf
+docker exec -it external-auth named-checkzone external.test /etc/bind/db.external.test
+docker logs -f client
+```
 
 ### **Step 3: Cache Poisoning 실행**
 * **목표**: $Transaction \ ID$ 예측 또는 추가 정보 구역 오염을 통한 캐시 변조.

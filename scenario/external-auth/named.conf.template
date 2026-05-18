@@ -1,0 +1,17 @@
+options {
+    directory "/var/cache/bind";
+    session-keyfile "/var/cache/bind/session.key";
+
+    listen-on port ${DNS_PORT} { any; };
+    listen-on-v6 { none; };
+
+    recursion no;
+    allow-query { any; };
+    dnssec-validation no;
+};
+
+zone "${EXTERNAL_DOMAIN_SUFFIX}" IN {
+    type master;
+    file "/etc/bind/db.external.test";
+    allow-query { any; };
+};
