@@ -7,3 +7,4 @@ scenario/auth/named.conf.generated
 scenario/auth/zones/
 __pycache__/
 *.pyc
+.env
