@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import json
 import os
 import socket
 
@@ -20,8 +21,20 @@ print("-" * 50)
 
 while True:
     # 스나이퍼로부터 메시지가 올 때까지 대기
-    data, addr = sock.recvfrom(1024)
-    message = data.decode('utf-8')
+    data, addr = sock.recvfrom(65535)
+    message = data.decode('utf-8', errors='replace')
     
-    # 알람 수신 시 터미널에 강력하게 경고 표출
-    print(f"[EMERGENCY PUSH from {addr[0]}:{addr[1]}] {message}")
+    try:
+        payload = json.loads(message)
+        print(
+            "[IDS ALERT] "
+            f"{payload.get('type', 'unknown_alert')} "
+            f"qname={payload.get('qname')} "
+            f"src_ip={payload.get('src_ip')} "
+            f"dns_id={payload.get('dns_id')} "
+            f"reason={payload.get('reason')} "
+            f"severity={payload.get('severity')}",
+            flush=True,
+        )
+    except json.JSONDecodeError:
+        print(f"[EMERGENCY PUSH from {addr[0]}:{addr[1]}] {message}", flush=True)

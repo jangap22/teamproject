@@ -32,18 +32,60 @@ services:
     depends_on:
       - resolver
     environment:
-      ALERT_HOST: "${RESOLVER_IP}"
-      ALERT_PORT: "${ALERT_PORT}"
-      SNIFF_INTERFACE: "${SNIFF_INTERFACE}"
-      AUTH_IP: "${AUTH_IP}"
-      RESOLVER_IP: "${RESOLVER_IP}"
       DNS_PORT: "${DNS_PORT}"
-    networks:
-      scenario-net:
-        ipv4_address: "${SNIFFER_IP}"
+      RESOLVER_IP: "${RESOLVER_IP}"
+      AUTH_IP: "${AUTH_IP}"
+      EXTERNAL_AUTH_IP: "${EXTERNAL_AUTH_IP}"
+      ALERT_PORT: "${ALERT_PORT}"
+      SNIFFER_INTERFACE: "${SNIFF_INTERFACE}"
+      SNIFFER_RESOLVER_IP: "${RESOLVER_IP}"
+      SNIFFER_RESOLVER_PORT: "${DNS_PORT}"
+      SNIFFER_BPF_FILTER: "dst host ${RESOLVER_IP} and (udp port ${DNS_PORT} or tcp port ${DNS_PORT})"
+      SNIFFER_MODE: "ids"
+      SNIFFER_SAMPLING_ENABLED: "true"
+      SNIFFER_BASE_SAMPLE_RATE: "1.0"
+      SNIFFER_INSPECT_ALL_RESPONSES: "true"
+      SNIFFER_RESPONSE_SAMPLE_RATE: "1.0"
+      SNIFFER_QUERY_SAMPLE_RATE: "0.1"
+      SNIFFER_ALWAYS_INSPECT_SUSPICIOUS: "true"
+      SNIFFER_SAMPLING_RANDOM_SEED: "42"
+      SNIFFER_RATE_LIMIT_WINDOW_SECONDS: "1.0"
+      SNIFFER_MAX_PER_QNAME_PER_WINDOW: "50"
+      SNIFFER_MAX_PER_SIGNATURE_PER_WINDOW: "100"
+      SNIFFER_STATS_INTERVAL_SECONDS: "10"
+      SNIFFER_LOG_SAMPLING_DROPS: "false"
+      SNIFFER_SAMPLING_DROP_LOG: "/data/detections/sampling_drops.csv"
+      SNIFFER_WINDOW_SECONDS: "2"
+      SNIFFER_DUPLICATE_TXID_THRESHOLD: "3"
+      SNIFFER_DUPLICATE_DNS_ID_WINDOW_SECONDS: "2.0"
+      SNIFFER_DUPLICATE_DNS_ID_THRESHOLD: "2"
+      SNIFFER_RESPONSE_BURST_THRESHOLD: "100"
+      SNIFFER_RESPONSE_BURST_WINDOW_SECONDS: "1.0"
+      SNIFFER_LARGE_SECTION_COUNT_THRESHOLD: "10"
+      SNIFFER_EXTREME_TTL_LOW: "0"
+      SNIFFER_EXTREME_TTL_HIGH: "86400"
+      SNIFFER_RF_PROBA_THRESHOLD: "0.7"
+      SNIFFER_AUTH_IPS: "${AUTH_IP},${EXTERNAL_AUTH_IP}"
+      SNIFFER_SAVE_FEATURE_CSV: "false"
+      SNIFFER_SAVE_DETECTION_CSV: "true"
+      SNIFFER_FEATURE_CSV: "/data/captures/features.csv"
+      SNIFFER_DETECTION_CSV: "/data/detections/detection_results.csv"
+      SNIFFER_MODEL_PATH: "/models/randomforest_model.joblib"
+      SNIFFER_ALERT_ENABLED: "true"
+      SNIFFER_ALERT_METHOD: "udp"
+      SNIFFER_ALERT_HOST: "127.0.0.1"
+      SNIFFER_ALERT_PORT: "${ALERT_PORT}"
+      SNIFFER_ALERT_FILE: "/data/alerts/ids_alerts.jsonl"
+      SNIFFER_ALERT_COOLDOWN_SECONDS: "1"
+      SNIFFER_TARGET_DOMAIN: "${TARGET_DOMAIN}"
+      SNIFFER_FAKE_IP: "${FAKE_WEB_IP}"
+    network_mode: "service:resolver"
     cap_add:
       - NET_ADMIN
       - NET_RAW
+    volumes:
+      - ../data:/data
+      - ../models:/models:ro
     restart: unless-stopped
 
   auth:

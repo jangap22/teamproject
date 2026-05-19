@@ -17,13 +17,13 @@ RUN apt-get update && apt-get install -y \
 RUN pip3 install --no-cache-dir --break-system-packages \
     scapy \
     pandas \
-    numpy
+    scikit-learn \
+    joblib
 
 WORKDIR /sniffer
 
-COPY sniffer.py .
+COPY . .
 
-# 실행 권한 부여
-RUN chmod +x sniffer.py
+RUN chmod +x main.py
 
-CMD ["python3", "sniffer.py"]
+CMD ["python3", "main.py"]
