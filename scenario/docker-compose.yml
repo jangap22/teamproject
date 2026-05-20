@@ -98,7 +98,7 @@ services:
       SNIFFER_INTERFACE: "enp0s1"
       SNIFFER_RESOLVER_IP: "${RESOLVER_IP}"
       SNIFFER_RESOLVER_PORT: "10053"
-      SNIFFER_BPF_FILTER: "udp port 10053 or tcp port 10053"
+      SNIFFER_BPF_FILTER: "host ${RESOLVER_IP} and (udp port 10053 or tcp port 10053 or udp port 20053 or tcp port 20053 or udp port 30053 or tcp port 30053)"
 
       SNIFFER_MODE: "ids"
       SNIFFER_SAMPLING_ENABLED: "true"

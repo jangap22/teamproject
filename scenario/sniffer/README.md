@@ -37,7 +37,7 @@ Sniffer-specific hardcoded values:
 
 - `DNS_PORT=10053`
 - `SNIFFER_RESOLVER_PORT=10053`
-- `SNIFFER_BPF_FILTER="udp port 10053 or tcp port 10053"`
+- `SNIFFER_BPF_FILTER="host ${RESOLVER_IP} and (udp port 10053 or tcp port 10053 or udp port 20053 or tcp port 20053 or udp port 30053 or tcp port 30053)"`
 - `SNIFFER_ALERT_PORT=9999`
 
 ## Separate Resolver/Sniffer VMs
@@ -46,7 +46,7 @@ For a split setup where the resolver container runs in one VM and the sniffer co
 
 - Resolver VM: run the resolver container and listen on `10053`.
 - Sniffer VM: run the sniffer container with `network_mode: host`, `NET_ADMIN`, and `NET_RAW`.
-- Sniffer capture filter: `udp port 10053 or tcp port 10053`.
+- Sniffer capture filter: `host ${RESOLVER_IP} and (udp port 10053 or tcp port 10053 or udp port 20053 or tcp port 20053 or udp port 30053 or tcp port 30053)`.
 - `SNIFFER_INTERFACE` must be the sniffer VM interface that can actually see resolver traffic.
 
 This only works if the sniffer VM can observe the resolver VM's packets on its NIC. If the traffic is switched as normal unicast and not mirrored/promiscuous-visible, the sniffer container will run but will not see resolver packets.
@@ -58,7 +58,7 @@ For the recommended Ubuntu server setup, run both resolver and sniffer container
 The compose file uses:
 
 - `SNIFFER_INTERFACE=enp0s1`
-- `SNIFFER_BPF_FILTER="udp port 10053 or tcp port 10053"`
+- `SNIFFER_BPF_FILTER="host ${RESOLVER_IP} and (udp port 10053 or tcp port 10053 or udp port 20053 or tcp port 20053 or udp port 30053 or tcp port 30053)"`
 - `SNIFFER_ALERT_HOST=127.0.0.1`
 - `SNIFFER_ALERT_PORT=9999`
 
@@ -72,13 +72,13 @@ ip addr
 Before debugging the sniffer, verify packet visibility on the Ubuntu VM:
 
 ```bash
-sudo tcpdump -i any "udp port 10053 or tcp port 10053"
+sudo tcpdump -i any "host <resolver_ip> and (udp port 10053 or tcp port 10053 or udp port 20053 or tcp port 20053 or udp port 30053 or tcp port 30053)"
 ```
 
 For the current `enp0s1` setting:
 
 ```bash
-sudo tcpdump -i enp0s1 "udp port 10053 or tcp port 10053"
+sudo tcpdump -i enp0s1 "host <resolver_ip> and (udp port 10053 or tcp port 10053 or udp port 20053 or tcp port 20053 or udp port 30053 or tcp port 30053)"
 ```
 
 ## Alert Delivery
