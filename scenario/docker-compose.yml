@@ -83,6 +83,8 @@ services:
     image: scenario-sniffer:python
     container_name: sniffer
     network_mode: host
+    depends_on:
+      - resolver
     cap_add:
       - NET_ADMIN
       - NET_RAW
@@ -93,10 +95,10 @@ services:
       EXTERNAL_AUTH_IP: "${EXTERNAL_AUTH_IP}"
       ALERT_PORT: "9999"
 
-      SNIFFER_INTERFACE: "${SNIFF_INTERFACE}"
+      SNIFFER_INTERFACE: "enp0s1"
       SNIFFER_RESOLVER_IP: "${RESOLVER_IP}"
       SNIFFER_RESOLVER_PORT: "10053"
-      SNIFFER_BPF_FILTER: "dst host ${RESOLVER_IP} and (udp port 10053 or tcp port 10053)"
+      SNIFFER_BPF_FILTER: "udp port 10053 or tcp port 10053"
 
       SNIFFER_MODE: "ids"
       SNIFFER_SAMPLING_ENABLED: "true"
@@ -134,7 +136,7 @@ services:
 
       SNIFFER_ALERT_ENABLED: "true"
       SNIFFER_ALERT_METHOD: "udp"
-      SNIFFER_ALERT_HOST: "${RESOLVER_IP}"
+      SNIFFER_ALERT_HOST: "127.0.0.1"
       SNIFFER_ALERT_PORT: "9999"
       SNIFFER_ALERT_FILE: "/data/alerts/ids_alerts.jsonl"
       SNIFFER_ALERT_COOLDOWN_SECONDS: "1"
