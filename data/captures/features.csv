@@ -1,0 +1,5 @@
+packet_index,timestamp,src_ip,dst_ip,qname,answer_ips,label,attack_type,scenario_tag,transport,src_port,dst_port,dns_id,is_response,opcode,rcode,aa,tc,rd,ra,qdcount,ancount,nscount,arcount,qname_len,min_ttl,max_ttl,ttl_span,packet_len,behavioral_query_rate,behavioral_same_txid_count,behavioral_same_qname_count,behavioral_src_ip_count,behavioral_response_burst_count,structural_qtype,structural_rr_count,structural_answer_count,structural_authority_count,structural_additional_count,structural_ttl_min,structural_ttl_max,structural_ttl_span,structural_packet_len,is_target_domain,has_fake_ip
+1,1779133967.4922206,192.168.65.1,172.20.0.10,,,,,,udp,54042,53,32610,0,0,0,0,0,1,0,1,0,0,1,0,0,0,0,80,1,1,1,1,0,0,1,0,0,1,0,0,0,80,0,0
+2,1779133977.4985514,172.20.0.10,192.168.65.1,,,,,,udp,53,54042,32610,1,0,2,0,0,1,1,1,0,0,1,0,0,0,0,80,1,2,2,1,1,0,1,0,0,1,0,0,0,80,0,0
+1,1779134132.1974032,192.168.65.1,172.20.0.10,bank.test,,,,,udp,44056,53,13658,0,0,0,0,0,1,0,1,0,0,1,9,0,0,0,80,1,1,1,1,0,1,1,0,0,1,0,0,0,80,1,0
+2,1779134142.202841,172.20.0.10,192.168.65.1,bank.test,,,,,udp,53,44056,13658,1,0,2,0,0,1,1,1,0,0,1,9,0,0,0,80,1,2,2,1,1,1,1,0,0,1,0,0,0,80,1,0

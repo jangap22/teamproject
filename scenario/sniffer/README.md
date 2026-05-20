@@ -19,11 +19,30 @@ resolver-bound DNS packet
   -> resolver alert when suspicious
 ```
 
-The Docker Compose setup runs the sniffer with `network_mode: service:resolver`. This lets `eth0` observe packets entering the resolver. A plain container attached to the same Docker bridge usually cannot see other containers' unicast traffic reliably.
+The Docker Compose setup currently uses `network_mode: host`. The sniffer watches resolver-bound traffic with the hardcoded resolver DNS port below.
+
+## Hardcoded Lab Ports
+
+The compose file intentionally hardcodes these lab ports instead of reading them from `.env`:
+
+- Resolver DNS: `10053/tcp`, `10053/udp`
+- Authoritative DNS: `20053/tcp`, `20053/udp`
+- External authoritative DNS: `30053/tcp`, `30053/udp`
+- Resolver IDS alert UDP socket: `9999/udp`
+- Resolver attack UDP port: `1025/udp`
+- Real web service env value: `80/tcp`
+- Fake web service env value: `80/tcp`
+
+Sniffer-specific hardcoded values:
+
+- `DNS_PORT=10053`
+- `SNIFFER_RESOLVER_PORT=10053`
+- `SNIFFER_BPF_FILTER="dst host ${RESOLVER_IP} and (udp port 10053 or tcp port 10053)"`
+- `SNIFFER_ALERT_PORT=9999`
 
 ## Alert Delivery
 
-The resolver already has a UDP alert listener on `ALERT_PORT`. The sniffer sends JSON alerts to `127.0.0.1:${ALERT_PORT}` because it shares the resolver network namespace.
+The resolver already has a UDP alert listener on `9999/udp`. The sniffer sends JSON alerts to `${RESOLVER_IP}:9999`.
 
 Resolver logs should show lines like:
 

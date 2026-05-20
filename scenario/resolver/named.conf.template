@@ -5,12 +5,16 @@ options {
     listen-on port ${DNS_PORT} { any; };
     listen-on-v6 { none; };
 
+    // 리졸버가 하나의 질의에 대해 최대 30초까지 기다리도록 설정
     resolver-query-timeout 30;
+    
+    // 재시도 횟수를 조절하여 포기하지 않게 만듦 (선택 사항)
     max-recursion-queries 20;
 
     recursion yes;
     allow-query { any; };
     dnssec-validation no;
+    //실습을 위한 포트범위 축소
     use-v4-udp-ports { ${RESOLVER_ATTACK_UDP_PORT}; };
 };
 
@@ -23,7 +27,7 @@ zone "bank.test" IN {
     type forward;
     forward only;
     forwarders {
-        ${AUTH_IP};
+        ${AUTH_IP} port ${AUTH_HOST_DNS_PORT};
     };
 };
 
@@ -31,6 +35,6 @@ zone "external.test" IN {
     type forward;
     forward only;
     forwarders {
-        ${EXTERNAL_AUTH_IP};
+        ${EXTERNAL_AUTH_IP} port ${EXTERNAL_AUTH_HOST_DNS_PORT};
     };
 };

@@ -1,0 +1,10 @@
+timestamp,src_ip,dst_ip,qname,dns_id,predicted_label,predicted_probability,model_status,label,attack_type,scenario_tag
+1779133967.4922206,192.168.65.1,172.20.0.10,,32610,,,model_file_not_found,,,
+1779133977.4985514,172.20.0.10,192.168.65.1,,32610,,,model_file_not_found,,,
+1779134132.1974032,192.168.65.1,172.20.0.10,bank.test,13658,,,model_file_not_found,,,
+1779134142.202841,172.20.0.10,192.168.65.1,bank.test,13658,,,model_file_not_found,,,
+1779135060.4626756,192.168.65.1,172.20.0.10,bank.test,58320,49082,53,udp,,,model_file_not_found,False,False,True,model_not_available,,,
+1779135075.9502459,172.20.0.30,172.20.0.10,bank.test,4444,53,1025,udp,,,model_file_not_found,True,True,True,rule_untrusted_dns_response_source,,,
+1779135075.9503164,172.20.0.30,172.20.0.10,bank.test,4444,53,1025,udp,,,model_file_not_found,True,True,True,rule_untrusted_dns_response_source,,,
+1779135947.8809593,172.20.0.30,172.20.0.10,bank.test,5555,53,1025,udp,,,model_file_not_found,True,True,True,True,True,dns_response_always_inspect,2,1,1,rule_untrusted_dns_response_source,,,
+1779135947.881015,172.20.0.30,172.20.0.10,bank.test,5555,53,1025,udp,,,model_file_not_found,True,True,True,True,True,cheap_rule_duplicate_dns_id,3,2,1,rule_untrusted_dns_response_source,,,
