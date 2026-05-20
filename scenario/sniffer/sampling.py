@@ -62,10 +62,19 @@ def _normalize_name(value) -> str:
 
 def _first_question(dns):
     question = dns.qd
-    if hasattr(question, "qname"):
-        return question
-    if isinstance(question, (list, tuple)) and question and hasattr(question[0], "qname"):
-        return question[0]
+    if question is None or int(getattr(dns, "qdcount", 0) or 0) <= 0:
+        return None
+    try:
+        if getattr(question, "qname", None) is not None:
+            return question
+    except (IndexError, AttributeError, TypeError):
+        return None
+    try:
+        first = question[0]
+    except (IndexError, TypeError, KeyError):
+        return None
+    if getattr(first, "qname", None) is not None:
+        return first
     return None
 
 
