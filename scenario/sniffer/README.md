@@ -37,7 +37,7 @@ Sniffer-specific hardcoded values:
 
 - `DNS_PORT=10053`
 - `SNIFFER_RESOLVER_PORT=10053`
-- Sniffer code hardcoded BPF filter: `host 192.168.219.112 and (udp port 10053 or tcp port 10053 or udp port 20053 or tcp port 20053 or udp port 30053 or tcp port 30053)`
+- Sniffer code hardcoded BPF filter: empty string, so Scapy receives all packets from the interface and the code filters DNS packets.
 - `SNIFFER_ALERT_PORT=9999`
 
 ## Separate Resolver/Sniffer VMs
@@ -46,7 +46,7 @@ For a split setup where the resolver container runs in one VM and the sniffer co
 
 - Resolver VM: run the resolver container and listen on `10053`.
 - Sniffer VM: run the sniffer container with `network_mode: host`, `NET_ADMIN`, and `NET_RAW`.
-- Sniffer capture filter is hardcoded in `sniffer/main.py`.
+- Sniffer capture filter is hardcoded as empty in `sniffer/main.py`; the code receives all interface packets and processes DNS packets only.
 - `SNIFFER_INTERFACE` must be the sniffer VM interface that can actually see resolver traffic.
 
 This only works if the sniffer VM can observe the resolver VM's packets on its NIC. If the traffic is switched as normal unicast and not mirrored/promiscuous-visible, the sniffer container will run but will not see resolver packets.
@@ -58,7 +58,7 @@ For the recommended Ubuntu server setup, run both resolver and sniffer container
 The compose file uses:
 
 - `SNIFFER_INTERFACE=enp0s1`
-- BPF filter is hardcoded in `sniffer/main.py`: `host 192.168.219.112 and (udp port 10053 or tcp port 10053 or udp port 20053 or tcp port 20053 or udp port 30053 or tcp port 30053)`
+- BPF filter is hardcoded as empty in `sniffer/main.py`.
 - `SNIFFER_ALERT_HOST=127.0.0.1`
 - `SNIFFER_ALERT_PORT=9999`
 
@@ -171,7 +171,7 @@ Stats are printed periodically:
 ## Environment Variables
 
 - `SNIFFER_INTERFACE`: capture interface. Defaults to `SNIFF_INTERFACE`, then `eth0`.
-- `SNIFFER_BPF_FILTER`: ignored. The packet filter is hardcoded in `sniffer/main.py` for this lab.
+- `SNIFFER_BPF_FILTER`: ignored. The packet filter is hardcoded as empty in `sniffer/main.py` for this lab.
 - `SNIFFER_RESOLVER_IP`: resolver IP used by capture and rules.
 - `SNIFFER_RESOLVER_PORT`: resolver DNS port. Defaults to `DNS_PORT`, then `53`.
 - `SNIFFER_AUTH_IPS`: comma-separated trusted authoritative server IPs.

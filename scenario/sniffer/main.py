@@ -14,12 +14,7 @@ from schema import CSV_COLUMNS, DETECTION_COLUMNS, SAMPLING_DROP_COLUMNS
 from writer import CsvAppender, JsonlAppender
 
 
-HARDCODED_BPF_FILTER = (
-    "host 192.168.219.112 and "
-    "(udp port 10053 or tcp port 10053 or "
-    "udp port 20053 or tcp port 20053 or "
-    "udp port 30053 or tcp port 30053)"
-)
+HARDCODED_BPF_FILTER = ""
 
 
 def env_bool(name: str, default: bool = False) -> bool:
