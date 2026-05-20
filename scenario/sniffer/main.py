@@ -14,6 +14,14 @@ from schema import CSV_COLUMNS, DETECTION_COLUMNS, SAMPLING_DROP_COLUMNS
 from writer import CsvAppender, JsonlAppender
 
 
+HARDCODED_BPF_FILTER = (
+    "host 192.168.219.112 and "
+    "(udp port 10053 or tcp port 10053 or "
+    "udp port 20053 or tcp port 20053 or "
+    "udp port 30053 or tcp port 30053)"
+)
+
+
 def env_bool(name: str, default: bool = False) -> bool:
     value = os.getenv(name)
     if value is None or value == "":
@@ -90,14 +98,7 @@ def main() -> None:
     resolver_ip = env_value("SNIFFER_RESOLVER_IP", "RESOLVER_IP")
     resolver_port = int(env_value("SNIFFER_RESOLVER_PORT", "DNS_PORT", default=str(dns_port)))
     interface = env_value("SNIFFER_INTERFACE", "SNIFF_INTERFACE", default="eth0")
-    bpf_filter = env_value(
-        "SNIFFER_BPF_FILTER",
-        default=(
-            f"dst host {resolver_ip} and (udp port {resolver_port} or tcp port {resolver_port})"
-            if resolver_ip
-            else f"udp port {resolver_port} or tcp port {resolver_port}"
-        ),
-    )
+    bpf_filter = HARDCODED_BPF_FILTER
     mode = env_value("SNIFFER_MODE", default="ids").lower()
     save_feature_csv = env_bool("SNIFFER_SAVE_FEATURE_CSV", default=False)
     save_detection_csv = env_bool("SNIFFER_SAVE_DETECTION_CSV", default=True)
