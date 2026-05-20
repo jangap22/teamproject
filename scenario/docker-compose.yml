@@ -27,15 +27,17 @@ services:
         BIND9_FALLBACK_SERIES: "${BIND9_FALLBACK_SERIES}"
     image: scenario-auth:bind9-9.18
     container_name: auth
-    network_mode: host
     cap_add:
       - NET_ADMIN
     environment:
       AUTH_DELAY_MS: "${AUTH_DELAY_MS}"
       AUTH_DELAY_IFACE: "${AUTH_DELAY_IFACE}"
-      DNS_PORT: "20053"
+      DNS_PORT: "53"
       REAL_WEB_IP: "${REAL_WEB_IP}"
       AUTH_IP: "${AUTH_IP}"
+    ports:
+      - "20053:53/tcp"
+      - "20053:53/udp"
     restart: unless-stopped
 
   external-auth:
@@ -46,12 +48,14 @@ services:
         BIND9_FALLBACK_SERIES: "${BIND9_FALLBACK_SERIES}"
     image: scenario-external-auth:bind9-9.18
     container_name: external-auth
-    network_mode: host
     environment:
-      DNS_PORT: "30053"
+      DNS_PORT: "53"
       EXTERNAL_AUTH_IP: "${EXTERNAL_AUTH_IP}"
       EXTERNAL_DOMAIN_SUFFIX: "${EXTERNAL_DOMAIN_SUFFIX}"
       EXTERNAL_DOMAIN_COUNT: "${EXTERNAL_DOMAIN_COUNT}"
+    ports:
+      - "30053:53/tcp"
+      - "30053:53/udp"
     restart: unless-stopped
 
   attacker:
