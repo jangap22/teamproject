@@ -4,11 +4,14 @@ Closed-lab normal DNS traffic generator for external.test.
 """
 
 import os
+import math
 import random
+import socket
 import time
-from collections import Counter
+from collections import Counter, deque
 
 import dns.exception
+import dns.message
 import dns.resolver
 import dns.rdatatype
 
@@ -43,6 +46,18 @@ SCENARIO_WEIGHTS = [
     ("multi_answer", 5),
     ("nxdomain", 5),
     ("legacy", 5),
+]
+MIN_ADDITIONAL_A_RATIO = 0.10
+BANK_NORMAL_RATIO = 0.10
+BANK_NORMAL_NAMES = [
+    "bank.test",
+    "login.bank.test",
+    "api.bank.test",
+    "static.bank.test",
+    "cdn.bank.test",
+    "sso.bank.test",
+    "domain0000.bank.test",
+    "domain00000000.bank.test",
 ]
 
 
@@ -79,13 +94,11 @@ NXDOMAIN_RATIO = optional_float("NXDOMAIN_RATIO", 0.10)
 WARMUP_SECONDS = optional_int("WARMUP_SECONDS", 300)
 ATTACK_WINDOW_SECONDS = optional_int("ATTACK_WINDOW_SECONDS", 60)
 COOLDOWN_SECONDS = optional_int("COOLDOWN_SECONDS", 300)
-NORMAL_QPS = optional_float("NORMAL_QPS", 500.0)
 
-DURATION_SECONDS = optional_int(
-    "DURATION_SECONDS",
-    WARMUP_SECONDS + ATTACK_WINDOW_SECONDS + COOLDOWN_SECONDS,
-)
-TOTAL_QUERIES = optional_int("TOTAL_QUERIES", int(DURATION_SECONDS * NORMAL_QPS))
+# Burst mode is the default manual run path: three hundred thousand queries per session.
+TOTAL_QUERIES = optional_int("BURST_TOTAL_QUERIES", 300_000)
+DURATION_SECONDS = optional_int("BURST_DURATION_SECONDS", 300)
+NORMAL_QPS = TOTAL_QUERIES / DURATION_SECONDS if DURATION_SECONDS > 0 else 0
 
 TIMEOUT_SECONDS = optional_float("TIMEOUT_SECONDS", 1.0)
 PROGRESS_INTERVAL_SECONDS = optional_int("PROGRESS_INTERVAL_SECONDS", 10)
@@ -163,6 +176,10 @@ def cache_distinct_label(query_number):
 
 
 def build_scenario_query(scenario, domains, weights, short_domains, query_number):
+    if scenario == "bank_normal":
+        fqdn = random.choice(BANK_NORMAL_NAMES)
+        return fqdn, "A", fqdn
+
     domain = choose_domain(domains, weights)
     nonce = cache_distinct_label(query_number)
 
@@ -247,6 +264,99 @@ def observe_response(response, ttl_counter):
     return additional_a_count
 
 
+def prepare_queries(domains, weights, short_domains):
+    prepared_queries = []
+    domain_counter = Counter()
+    qtype_counter = Counter()
+    scenario_counter = Counter()
+    domain_length_counter = Counter()
+
+    scenarios = [choose_weighted(SCENARIO_WEIGHTS) for _ in range(TOTAL_QUERIES)]
+    required_bank = math.ceil(TOTAL_QUERIES * BANK_NORMAL_RATIO)
+    for index in random.sample(range(TOTAL_QUERIES), required_bank):
+        scenarios[index] = "bank_normal"
+
+    required_additional = math.ceil(TOTAL_QUERIES * MIN_ADDITIONAL_A_RATIO)
+    missing_additional = required_additional - scenarios.count("additional_a")
+    if missing_additional > 0:
+        replaceable = deque(
+            index
+            for index, scenario in enumerate(scenarios)
+            if scenario not in ("additional_a", "bank_normal")
+        )
+        for _ in range(missing_additional):
+            scenarios[replaceable.popleft()] = "additional_a"
+
+    for query_number, scenario in enumerate(scenarios):
+        fqdn, qtype, domain = build_scenario_query(
+            scenario,
+            domains,
+            weights,
+            short_domains,
+            query_number,
+        )
+        wire = dns.message.make_query(fqdn, qtype).to_wire()
+        prepared_queries.append(wire)
+        domain_counter[domain] += 1
+        qtype_counter[qtype] += 1
+        scenario_counter[scenario] += 1
+        domain_length_counter[query_length_bucket(fqdn)] += 1
+
+    return (
+        prepared_queries,
+        domain_counter,
+        qtype_counter,
+        scenario_counter,
+        domain_length_counter,
+    )
+
+
+def send_prepared_queries(prepared_queries, target_qps):
+    sent_count = 0
+    error_count = 0
+    start_time = time.monotonic()
+    next_progress_time = start_time + PROGRESS_INTERVAL_SECONDS
+    destination = (RESOLVER_IP, RESOLVER_PORT)
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            while sent_count < len(prepared_queries):
+                now = time.monotonic()
+                elapsed = now - start_time
+                target_sent = min(
+                    len(prepared_queries),
+                    int(elapsed * target_qps) + 1 if target_qps > 0 else len(prepared_queries),
+                )
+
+                while sent_count < target_sent:
+                    try:
+                        sock.sendto(prepared_queries[sent_count], destination)
+                    except OSError:
+                        error_count += 1
+                    sent_count += 1
+
+                now = time.monotonic()
+                if now >= next_progress_time:
+                    current_qps = sent_count / (now - start_time) if now > start_time else 0
+                    print(
+                        f"[burst] elapsed={now - start_time:.1f}s "
+                        f"sent={sent_count} qps={current_qps:.2f} errors={error_count}",
+                        flush=True,
+                    )
+                    next_progress_time = now + PROGRESS_INTERVAL_SECONDS
+
+                if sent_count < len(prepared_queries) and target_qps > 0:
+                    next_send_time = start_time + (sent_count / target_qps)
+                    sleep_seconds = next_send_time - time.monotonic()
+                    if sleep_seconds > 0:
+                        time.sleep(min(sleep_seconds, 0.001))
+    except KeyboardInterrupt:
+        print()
+        print("[!] Interrupted by user.")
+
+    return start_time, sent_count, error_count
+
+
 def print_progress(start_time, sent_count, success_count, error_count, target_qps, domain_counter, qtype_counter):
     now = time.monotonic()
     elapsed = now - start_time
@@ -319,12 +429,10 @@ def main():
     domains = build_domains()
     weights = build_zipf_weights(len(domains), ZIPF_S)
     short_domains = build_short_domains()
-    resolver = build_resolver()
 
     target_qps = NORMAL_QPS
-    interval = 1.0 / target_qps if target_qps > 0 else 0
 
-    print("Normal DNS query generator started.")
+    print("Normal DNS query generator burst mode preparing.")
     print(f"resolver          : {RESOLVER_IP}:{RESOLVER_PORT}")
     print(f"domain suffix     : {EXTERNAL_DOMAIN_SUFFIX}")
     print(f"ranked domains    : {len(domains)}")
@@ -337,79 +445,35 @@ def main():
     print(f"normal QPS        : {NORMAL_QPS:.2f}")
     print(f"total queries     : {TOTAL_QUERIES}")
     print(f"short domains     : {len(short_domains)} under {EXTERNAL_DOMAIN_SUFFIX}")
+    print(f"min additional A  : {MIN_ADDITIONAL_A_RATIO:.0%} scenario share")
+    print(f"bank normal ratio : {BANK_NORMAL_RATIO:.0%} scenario share")
+    print("response features : inspect resolver upstream pcap after burst")
     print()
 
-    sent_count = 0
-    success_count = 0
-    error_count = 0
-    domain_counter = Counter()
-    qtype_counter = Counter()
-    scenario_counter = Counter()
-    ttl_counter = Counter()
-    domain_length_counter = Counter()
-    observed_additional_a_count = 0
+    (
+        prepared_queries,
+        domain_counter,
+        qtype_counter,
+        scenario_counter,
+        domain_length_counter,
+    ) = prepare_queries(domains, weights, short_domains)
+    print(f"prepared queries  : {len(prepared_queries)}")
+    print("Normal DNS query generator burst sending started.", flush=True)
 
-    start_time = time.monotonic()
-    next_send_time = start_time
-    next_progress_time = start_time + PROGRESS_INTERVAL_SECONDS
+    start_time, sent_count, error_count = send_prepared_queries(prepared_queries, target_qps)
 
-    try:
-        while sent_count < TOTAL_QUERIES:
-            now = time.monotonic()
-            if now < next_send_time:
-                time.sleep(next_send_time - now)
-
-            scenario = choose_weighted(SCENARIO_WEIGHTS)
-            fqdn, qtype, domain = build_scenario_query(
-                scenario,
-                domains,
-                weights,
-                short_domains,
-                sent_count,
-            )
-            ok, response = send_dns_query(resolver, fqdn, qtype)
-
-            sent_count += 1
-            domain_counter[domain] += 1
-            qtype_counter[qtype] += 1
-            scenario_counter[scenario] += 1
-            domain_length_counter[query_length_bucket(fqdn)] += 1
-            observed_additional_a_count += observe_response(response, ttl_counter)
-            if ok:
-                success_count += 1
-            else:
-                error_count += 1
-
-            next_send_time = start_time + (sent_count * interval)
-            now = time.monotonic()
-            if now >= next_progress_time:
-                print_progress(
-                    start_time,
-                    sent_count,
-                    success_count,
-                    error_count,
-                    target_qps,
-                    domain_counter,
-                    qtype_counter,
-                )
-                next_progress_time = now + PROGRESS_INTERVAL_SECONDS
-
-    except KeyboardInterrupt:
-        print()
-        print("[!] Interrupted by user.")
-    finally:
-        print_final_summary(
-            start_time,
-            sent_count,
-            success_count,
-            error_count,
-            domain_counter,
-            qtype_counter,
-            scenario_counter,
-            ttl_counter,
-            domain_length_counter,
-            observed_additional_a_count,
-        )
+    print_final_summary(
+        start_time,
+        sent_count,
+        sent_count - error_count,
+        error_count,
+        domain_counter,
+        qtype_counter,
+        scenario_counter,
+        Counter(),
+        domain_length_counter,
+        0,
+    )
 
 
 if __name__ == "__main__":

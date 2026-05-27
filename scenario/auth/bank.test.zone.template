@@ -7,8 +7,13 @@ $TTL 300
         300
 )
 
-@       IN  NS  ns1.bank.test.
-@       IN  A   ${REAL_WEB_IP}
-domain0000 IN A  ${REAL_WEB_IP}
-domain00000000 IN A ${REAL_WEB_IP}
+@       60  IN  NS  ns1.bank.test.
+@       60  IN  A   ${REAL_WEB_IP}
+domain0000 60 IN A  ${REAL_WEB_IP}
+domain00000000 60 IN A ${REAL_WEB_IP}
+login   60  IN  A   ${REAL_WEB_IP}
+api     60  IN  A   ${REAL_WEB_IP}
+static  60  IN  A   ${REAL_WEB_IP}
+cdn     60  IN  A   ${REAL_WEB_IP}
+sso     60  IN  A   ${REAL_WEB_IP}
 ns1     IN  A   ${AUTH_IP}
