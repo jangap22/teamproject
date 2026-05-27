@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import time
 from collections import defaultdict, deque
 from pathlib import Path
@@ -8,6 +9,9 @@ import joblib
 import pandas as pd
 
 from schema import DROP_COLUMNS, FEATURE_COLUMNS
+
+
+VERSIONED_MODEL_PATTERN = re.compile(r"^randomforest_v(\d+)\.joblib$")
 
 
 class ModelDetector:
@@ -26,6 +30,7 @@ class ModelDetector:
         ttl_high_threshold: int = 86400,
     ):
         self.model_path = model_path
+        self.loaded_model_path = None
         self.model = None
         self.feature_columns = None
         self.best_params = None
@@ -50,7 +55,7 @@ class ModelDetector:
             self.model_status = "model_path_not_set"
             return
 
-        path = Path(self.model_path)
+        path = self._resolve_model_path(Path(self.model_path))
         if not path.exists() and path.name == "random_forest_model.joblib":
             fallback_path = path.with_name("randomforest_model.joblib")
             if fallback_path.exists():
@@ -84,6 +89,7 @@ class ModelDetector:
                     return
 
             self.feature_columns = list(self.feature_columns)
+            self.loaded_model_path = str(path)
             self.model_status = "model_loaded"
             print(f"[sniffer] model loaded: {path}", flush=True)
         except Exception as exc:
@@ -91,6 +97,18 @@ class ModelDetector:
             self.feature_columns = None
             self.model_status = "model_load_failed"
             print(f"[sniffer] model load failed: {exc}", flush=True)
+
+    def _resolve_model_path(self, configured_path: Path) -> Path:
+        versioned_models = []
+        for candidate in configured_path.parent.glob("randomforest_v*.joblib"):
+            match = VERSIONED_MODEL_PATTERN.match(candidate.name)
+            if match:
+                versioned_models.append((int(match.group(1)), candidate))
+        if versioned_models:
+            version, path = max(versioned_models, key=lambda item: item[0])
+            print(f"[sniffer] selected latest versioned model: v{version:06d} ({path})", flush=True)
+            return path
+        return configured_path
 
     def _infer_feature_columns(self, model) -> list[str] | None:
         columns = getattr(model, "feature_names_in_", None)

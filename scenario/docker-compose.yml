@@ -10,6 +10,7 @@ services:
     network_mode: host
     environment:
       DNS_PORT: "10053"
+      RESOLVER_IP: "${RESOLVER_IP}"
       AUTH_IP: "${AUTH_IP}"
       AUTH_PORT: "20053"
       EXTERNAL_AUTH_IP: "${EXTERNAL_AUTH_IP}"
@@ -17,6 +18,10 @@ services:
       RESOLVER_ATTACK_UDP_PORT: "1025"
       ALERT_BIND_HOST: "${ALERT_BIND_HOST}"
       ALERT_PORT: "9999"
+      PCAP_CAPTURE_INTERFACE: "any"
+      PCAP_CAPTURE_DIR: "/data/captures"
+    volumes:
+      - ../data:/data
     restart: unless-stopped
 
   auth:

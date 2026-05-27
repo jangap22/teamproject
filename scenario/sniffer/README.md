@@ -51,6 +51,19 @@ For a split setup where the resolver container runs in one VM and the sniffer co
 
 This only works if the sniffer VM can observe the resolver VM's packets on its NIC. If the traffic is switched as normal unicast and not mirrored/promiscuous-visible, the sniffer container will run but will not see resolver packets.
 
+## Resolver Session PCAP Capture
+
+Starting the `resolver` service also starts a raw pcap capture process in that container. It records only DNS responses addressed to `RESOLVER_IP` on the same monitored ports used by the sniffer. Stopping or removing the resolver container stops the capture process and closes the current pcap.
+
+Session files are written through the resolver data volume:
+
+```text
+../data/captures/dataset_v000001.pcap
+../data/captures/dataset_v000002.pcap
+```
+
+Each resolver start selects the next unused filename; an existing dataset file is not overwritten. The versioned filename is suitable for later DVC tracking, but it does not itself configure DVC or assign training labels.
+
 ## Same Ubuntu Server
 
 For the recommended Ubuntu server setup, run both resolver and sniffer containers on the same Ubuntu VM with `network_mode: host`.
@@ -99,11 +112,16 @@ The same alert payload is appended to:
 
 ## Model Artifact
 
-Place the trained model at:
+Versioned trained models should be placed at:
 
 ```text
-/models/randomforest_model.joblib
+/models/randomforest_v000001.joblib
+/models/randomforest_v000002.joblib
 ```
+
+At startup, the sniffer selects the `randomforest_vNNNNNN.joblib` file with the highest numeric version in `/models`. If no versioned model exists, it continues to support the legacy configured path, which is `/models/randomforest_model.joblib` in Compose. A newly copied model is selected on the next sniffer start or restart; the running process does not hot-reload models.
+
+A model trained from `dataset_v000001.pcap` should use the matching filename `randomforest_v000001.joblib`, so later DVC metadata can associate the raw dataset and trained artifact by version.
 
 Expected joblib structure:
 
@@ -180,7 +198,7 @@ Stats are printed periodically:
 - `SNIFFER_QUERY_SAMPLE_RATE`: query sampling rate.
 - `SNIFFER_RESPONSE_SAMPLE_RATE`: response sampling rate when not forcing all responses.
 - `SNIFFER_ALWAYS_INSPECT_SUSPICIOUS`: never drop cheap-rule suspicious packets.
-- `SNIFFER_MODEL_PATH`: joblib model path. Defaults to `/models/randomforest_model.joblib`.
+- `SNIFFER_MODEL_PATH`: legacy/default joblib path. Versioned `randomforest_vNNNNNN.joblib` files in the same directory take precedence at startup.
 - `SNIFFER_RF_PROBA_THRESHOLD`: probability threshold for model alerts.
 - `SNIFFER_WINDOW_SECONDS`: rule sliding window.
 - `SNIFFER_DUPLICATE_TXID_THRESHOLD`: duplicate response threshold.
