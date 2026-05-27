@@ -10,10 +10,12 @@ from collections import Counter
 
 import dns.exception
 import dns.resolver
+import dns.rdatatype
 
 
 RANDOM_SEED = 20260519
 POPULAR_DOMAINS = ["google", "youtube", "naver"]
+SHORT_DOMAIN_LABELS = ["api", "cdn", "gw", "db", "app", "dev", "log", "auth", "mail", "vpn", "sso"]
 QTYPE_WEIGHTS = [
     ("A", 80),
     ("AAAA", 12),
@@ -29,6 +31,18 @@ NAME_PATTERN_WEIGHTS = [
     ("asset", 30),
     ("mail", 5),
     ("login", 5),
+]
+SCENARIO_WEIGHTS = [
+    ("regular_a", 20),
+    ("short_a", 20),
+    ("long_a", 8),
+    ("cname_a", 12),
+    ("additional_a", 12),
+    ("authority_soa", 7),
+    ("aaaa", 6),
+    ("multi_answer", 5),
+    ("nxdomain", 5),
+    ("legacy", 5),
 ]
 
 
@@ -65,7 +79,7 @@ NXDOMAIN_RATIO = optional_float("NXDOMAIN_RATIO", 0.10)
 WARMUP_SECONDS = optional_int("WARMUP_SECONDS", 300)
 ATTACK_WINDOW_SECONDS = optional_int("ATTACK_WINDOW_SECONDS", 60)
 COOLDOWN_SECONDS = optional_int("COOLDOWN_SECONDS", 300)
-NORMAL_QPS = optional_float("NORMAL_QPS", 200.0)
+NORMAL_QPS = optional_float("NORMAL_QPS", 500.0)
 
 DURATION_SECONDS = optional_int(
     "DURATION_SECONDS",
@@ -83,6 +97,7 @@ def build_domains():
         f"domain{i:04d}.{EXTERNAL_DOMAIN_SUFFIX}"
         for i in range(EXTERNAL_DOMAIN_COUNT)
     )
+    domains.extend(f"{name}.{EXTERNAL_DOMAIN_SUFFIX}" for name in SHORT_DOMAIN_LABELS)
     return domains
 
 
@@ -116,6 +131,10 @@ def choose_qtype():
     return choose_weighted(QTYPE_WEIGHTS)
 
 
+def build_short_domains():
+    return [f"{name}.{EXTERNAL_DOMAIN_SUFFIX}" for name in SHORT_DOMAIN_LABELS]
+
+
 def build_query_name(domain, qtype):
     if random.random() < NXDOMAIN_RATIO:
         return random_nxdomain(domain)
@@ -138,6 +157,42 @@ def build_query_name(domain, qtype):
     return domain
 
 
+def cache_distinct_label(query_number):
+    suffix = "".join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=3))
+    return f"q{query_number:x}{suffix}"
+
+
+def build_scenario_query(scenario, domains, weights, short_domains, query_number):
+    domain = choose_domain(domains, weights)
+    nonce = cache_distinct_label(query_number)
+
+    if scenario == "short_a":
+        domain = random.choice(short_domains)
+        return domain, "A", domain
+    if scenario == "regular_a":
+        domain = random.choice(short_domains)
+        return f"{nonce}.{domain}", "A", domain
+    if scenario == "long_a":
+        return f"telemetrycollector{nonce}.fresh.{domain}", "A", domain
+    if scenario == "cname_a":
+        domain = random.choice(short_domains)
+        return f"{nonce}.alias.{domain}", random.choice(("A", "AAAA")), domain
+    if scenario == "additional_a":
+        return f"{nonce}.mailroute.{domain}", "MX", domain
+    if scenario == "authority_soa":
+        return f"{nonce}.authority-missing.{domain}", "A", domain
+    if scenario == "aaaa":
+        domain = random.choice(short_domains)
+        return f"{nonce}.{domain}", "AAAA", domain
+    if scenario == "multi_answer":
+        return f"{nonce}.multi.{domain}", random.choice(("A", "AAAA")), domain
+    if scenario == "nxdomain":
+        return f"{nonce}.missing.{domain}", "A", domain
+
+    qtype = choose_qtype()
+    return build_query_name(domain, qtype), qtype, domain
+
+
 def build_resolver():
     resolver = dns.resolver.Resolver(configure=False)
     resolver.nameservers = [RESOLVER_IP]
@@ -149,17 +204,47 @@ def build_resolver():
 
 def send_dns_query(resolver, fqdn, qtype):
     try:
-        resolver.resolve(fqdn, qtype)
-        return True
+        answer = resolver.resolve(fqdn, qtype, raise_on_no_answer=False)
+        return True, answer.response
+    except dns.resolver.NXDOMAIN as error:
+        try:
+            return False, next(iter(error.responses().values()), None)
+        except Exception:
+            return False, None
     except (
-        dns.resolver.NXDOMAIN,
         dns.resolver.NoAnswer,
         dns.resolver.NoNameservers,
         dns.exception.Timeout,
     ):
-        return False
+        return False, None
     except Exception:
-        return False
+        return False, None
+
+
+def query_length_bucket(fqdn):
+    length = len(fqdn.rstrip("."))
+    if length <= 18:
+        return "short"
+    if length <= 35:
+        return "medium"
+    if length <= 55:
+        return "long"
+    return "very_long"
+
+
+def observe_response(response, ttl_counter):
+    additional_a_count = 0
+    if response is None:
+        return additional_a_count
+
+    for section in (response.answer, response.authority, response.additional):
+        for rrset in section:
+            ttl_counter[int(rrset.ttl)] += len(rrset)
+
+    for rrset in response.additional:
+        if rrset.rdtype == dns.rdatatype.A:
+            additional_a_count += len(rrset)
+    return additional_a_count
 
 
 def print_progress(start_time, sent_count, success_count, error_count, target_qps, domain_counter, qtype_counter):
@@ -185,7 +270,18 @@ def print_progress(start_time, sent_count, success_count, error_count, target_qp
     print()
 
 
-def print_final_summary(start_time, sent_count, success_count, error_count, domain_counter, qtype_counter):
+def print_final_summary(
+    start_time,
+    sent_count,
+    success_count,
+    error_count,
+    domain_counter,
+    qtype_counter,
+    scenario_counter,
+    ttl_counter,
+    domain_length_counter,
+    observed_additional_a_count,
+):
     duration = time.monotonic() - start_time
     average_qps = sent_count / duration if duration > 0 else 0
 
@@ -202,6 +298,18 @@ def print_final_summary(start_time, sent_count, success_count, error_count, doma
     print("qtype counts:")
     for qtype, count in qtype_counter.most_common():
         print(f"  {qtype:<6} {count}")
+    print(f"total_queries_sent          : {sent_count}")
+    print(f"duration_seconds             : {duration:.2f}")
+    print(f"estimated_qps                : {average_qps:.2f}")
+    print(f"scenario_counts              : {dict(scenario_counter)}")
+    print(f"ttl_distribution             : {dict(sorted(ttl_counter.items()))}")
+    print(f"domain_length_distribution   : {dict(domain_length_counter)}")
+    short_ratio = domain_length_counter["short"] / sent_count if sent_count else 0
+    print(f"short_domain_ratio           : {short_ratio:.4f}")
+    print(f"additional_A_scenario_count  : {scenario_counter['additional_a']}")
+    print(f"observed_additional_A_records: {observed_additional_a_count}")
+    print(f"nxdomain_count               : {scenario_counter['nxdomain']}")
+    print("src_port diversity           : excluded; environment structure requires separate confirmation")
     print("======================================================")
     print()
 
@@ -210,6 +318,7 @@ def main():
     random.seed(RANDOM_SEED)
     domains = build_domains()
     weights = build_zipf_weights(len(domains), ZIPF_S)
+    short_domains = build_short_domains()
     resolver = build_resolver()
 
     target_qps = NORMAL_QPS
@@ -227,6 +336,7 @@ def main():
     print(f"duration          : {DURATION_SECONDS} seconds")
     print(f"normal QPS        : {NORMAL_QPS:.2f}")
     print(f"total queries     : {TOTAL_QUERIES}")
+    print(f"short domains     : {len(short_domains)} under {EXTERNAL_DOMAIN_SUFFIX}")
     print()
 
     sent_count = 0
@@ -234,6 +344,10 @@ def main():
     error_count = 0
     domain_counter = Counter()
     qtype_counter = Counter()
+    scenario_counter = Counter()
+    ttl_counter = Counter()
+    domain_length_counter = Counter()
+    observed_additional_a_count = 0
 
     start_time = time.monotonic()
     next_send_time = start_time
@@ -245,14 +359,22 @@ def main():
             if now < next_send_time:
                 time.sleep(next_send_time - now)
 
-            domain = choose_domain(domains, weights)
-            qtype = choose_qtype()
-            fqdn = build_query_name(domain, qtype)
-            ok = send_dns_query(resolver, fqdn, qtype)
+            scenario = choose_weighted(SCENARIO_WEIGHTS)
+            fqdn, qtype, domain = build_scenario_query(
+                scenario,
+                domains,
+                weights,
+                short_domains,
+                sent_count,
+            )
+            ok, response = send_dns_query(resolver, fqdn, qtype)
 
             sent_count += 1
             domain_counter[domain] += 1
             qtype_counter[qtype] += 1
+            scenario_counter[scenario] += 1
+            domain_length_counter[query_length_bucket(fqdn)] += 1
+            observed_additional_a_count += observe_response(response, ttl_counter)
             if ok:
                 success_count += 1
             else:
@@ -276,7 +398,18 @@ def main():
         print()
         print("[!] Interrupted by user.")
     finally:
-        print_final_summary(start_time, sent_count, success_count, error_count, domain_counter, qtype_counter)
+        print_final_summary(
+            start_time,
+            sent_count,
+            success_count,
+            error_count,
+            domain_counter,
+            qtype_counter,
+            scenario_counter,
+            ttl_counter,
+            domain_length_counter,
+            observed_additional_a_count,
+        )
 
 
 if __name__ == "__main__":
