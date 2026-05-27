@@ -1,13 +1,13 @@
 # Sniffer IDS Container
 
-The sniffer is an IDS sidecar for the resolver. It watches DNS packets entering the resolver network namespace, extracts the same feature row used by offline training, runs a saved joblib model when available, applies defensive fallback rules, logs detections, and sends alerts to the resolver.
+The sniffer is an IDS sidecar for the resolver. It watches DNS responses addressed to the resolver, extracts the same feature row used by offline training, runs a saved joblib model when available, applies defensive fallback rules, logs detections, and sends alerts to the resolver.
 
 It does not train a random forest model. Training, validation, F1-score, FPR, and confusion matrix work belong in offline scripts such as `scripts/train_random_forest.py`, `scripts/evaluate_model.py`, or notebooks.
 
 ## IDS Runtime Flow
 
 ```text
-resolver-bound DNS packet
+DNS response addressed to the resolver
   -> packet capture
   -> cheap pre-filter and runtime sampling
   -> full inspection only for selected packets
@@ -37,7 +37,7 @@ Sniffer-specific hardcoded values:
 
 - `DNS_PORT=10053`
 - `SNIFFER_RESOLVER_PORT=10053`
-- Sniffer code hardcoded BPF filter: empty string, so Scapy receives all packets from the interface and the code filters DNS packets.
+- Sniffer code hardcoded BPF filter: empty string, so Scapy receives all packets from the interface and the code processes DNS responses addressed to `SNIFFER_RESOLVER_IP` only.
 - `SNIFFER_ALERT_PORT=9999`
 
 ## Separate Resolver/Sniffer VMs
@@ -46,7 +46,7 @@ For a split setup where the resolver container runs in one VM and the sniffer co
 
 - Resolver VM: run the resolver container and listen on `10053`.
 - Sniffer VM: run the sniffer container with `network_mode: host`, `NET_ADMIN`, and `NET_RAW`.
-- Sniffer capture filter is hardcoded as empty in `sniffer/main.py`; the code receives all interface packets and processes DNS packets only.
+- Sniffer capture filter is hardcoded as empty in `sniffer/main.py`; the code receives all interface packets and processes DNS responses addressed to `SNIFFER_RESOLVER_IP` only.
 - `SNIFFER_INTERFACE` must be the sniffer VM interface that can actually see resolver traffic.
 
 This only works if the sniffer VM can observe the resolver VM's packets on its NIC. If the traffic is switched as normal unicast and not mirrored/promiscuous-visible, the sniffer container will run but will not see resolver packets.

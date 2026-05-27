@@ -249,7 +249,7 @@ def main() -> None:
             print("[sniffer] packet processing failed", flush=True)
             traceback.print_exc()
 
-    start_capture(interface=interface, bpf_filter=bpf_filter, on_dns_packet=on_packet)
+    start_capture(interface=interface, bpf_filter=bpf_filter, resolver_ip=resolver_ip, on_dns_packet=on_packet)
 
 
 if __name__ == "__main__":
